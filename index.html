@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Zen Arrow</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+        <style>
+            body { margin: 0; overflow: hidden; background-color: #100b36; }
+            .button {
+                position: absolute;
+                background-color: #637ccd;
+                color: white;
+                font-size: 35px;
+                padding: 30px 40px;
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+                transition: opacity 0.5s ease;
+            }
+            .hidden { display: none; }
+            .message {
+                position: absolute;
+                top: 30%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 50px;
+                color: white;
+                text-align: center;}
+        </style>
+    </head>
+<body>
+    <div id="startMessage" class="message">
+        Breath until play this game
+    </div>
+    <!-- Botón de Start-->
+    <button id="startButton" class="button" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+        Start
+    </button>
+
+    <!-- Botón de Try Again -->
+    <button id="tryAgainButton" class="button hidden" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+        Try Again
+    </button>
+    <script>
+        let rocketX, rocketY, rocketSpeed = 9, direction = 1, angle = 0;
+        let obstacles = [], trail = [], waves = [], scores = [], score = 0;
+        let gameOverFlag = false, gameStarted = false;
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            noLoop()}; 
+
+        function draw() {
+            if (!gameStarted) return;
+
+            if (gameOverFlag) {
+                displayGameOver();
+                return;
+            }
+
+            background("#100b36");
+
+            // movimiento y flecha
+            angle = direction === -1 ? -45 : 45;
+            rocketY += direction * rocketSpeed;
+            rocketY = constrain(rocketY, 0, height);
+
+            // estela con movimiento
+            if (trail.length === 0 || trail[trail.length - 1].y !== rocketY) {
+                trail.push({ x: rocketX, y: rocketY });
+            }
+            for (let i = 0; i < trail.length; i++) {
+                trail[i].x -= 4;
+            }
+            if (trail.length > 200 || trail[0].x < 0) trail.shift();
+            drawTrail();
+
+            // flecha
+            push();
+            translate(rocketX, rocketY);
+            rotate(radians(angle));
+            drawArrow();
+            pop();
+
+            // obstáculos
+            if (frameCount % 100 === 0) obstacles.push(new StarObstacle());
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                obstacles[i].show();
+                if (obstacles[i].hits(rocketX, rocketY)) {
+                    // Cambiar posición según dirección
+                    if (direction === -1) {
+                        rocketY = 0; // Mover a la parte superior
+                    } else {
+                        rocketY = height; // Mover a la parte inferior
+                    }
+                }
+                if (obstacles[i].offscreen()) {
+                    obstacles.splice(i, 1);
+                    score++;
+                }
+            }
+
+            drawWaves();
+        }
+
+        function mousePressed() {
+            if (gameOverFlag) startGame();
+            else {
+                direction *= -1; 
+                waves.push(new Wave(mouseX, mouseY)); 
+            }
+        }
+
+        function keyPressed() {
+            if (gameOverFlag) startGame();
+        }
+
+        function startGame() {
+            rocketX = width / 4;
+            rocketY = height / 2;
+            obstacles = [];
+            trail = [];
+            waves = [];
+            score = 0;
+            gameOverFlag = false;
+            gameStarted = true;
+            document.getElementById('startMessage').classList.add('hidden');
+            document.getElementById('startButton').classList.add('hidden');
+            document.getElementById('tryAgainButton').classList.add('hidden');
+            loop();
+        }
+
+        function triggerGameOver() {
+            noLoop();
+            gameOverFlag = true;
+            scores.push(score);
+            document.getElementById('tryAgainButton').classList.remove('hidden');
+        }
+
+        function displayGameOver() {
+            fill(0, 0, 0, 150);
+            rect(0, 0, width, height);
+
+            fill(255);
+            textSize(48);
+            textAlign(CENTER, CENTER);
+            text("Game Over", width / 2, height / 3);
+            textSize(24);
+            text(`Puntuación: ${score}`, width / 2, height / 2);
+        }
+
+
+        function drawArrow() {
+            fill('#FFD700');
+            noStroke();
+            triangle(20, 0, -20, -10, -20, 10);
+        }
+
+        function drawTrail() {
+            stroke(255);
+            strokeWeight(4);
+            noFill();
+            beginShape();
+            for (let t of trail) vertex(t.x, t.y);
+            endShape();
+        }
+
+        class StarObstacle {
+            constructor() {
+                this.x = width;
+                this.y = random(height / 4, (3 * height) / 4);
+                this.size = 50;
+                this.speed = 4;
+                this.angle = 0;
+            }
+
+            update() {
+                this.x -= this.speed;
+                this.angle += 5;
+            }
+
+            show() {
+                push();
+                translate(this.x, this.y);
+                rotate(radians(this.angle));
+                fill('#637ccd');
+                noStroke();
+                beginShape();
+                for (let a = 0; a < TWO_PI; a += PI / 4) {
+                    let sx = cos(a) * this.size;
+                    let sy = sin(a) * this.size;
+                    vertex(sx, sy);
+                    sx = cos(a + PI / 8) * this.size / 2;
+                    sy = sin(a + PI / 8) * this.size / 2;
+                    vertex(sx, sy);
+                }
+                endShape(CLOSE);
+                pop();
+            }
+
+            hits(px, py) {
+                return dist(px, py, this.x, this.y) < this.size;
+            }
+
+            offscreen() {
+                return this.x < -this.size;
+            }
+        }
+
+        class Wave {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 0;
+                this.alpha = 255;
+            }
+
+            update() {
+                this.radius += 2; 
+                this.alpha -= 3; 
+            }
+
+            show() {
+                noFill();
+                stroke(100, 200, 255, this.alpha); 
+                strokeWeight(2);
+                ellipse(this.x, this.y, this.radius * 2);
+            }
+
+            finished() {
+                return this.alpha <= 0; 
+            }
+        }
+
+        function drawWaves() {
+            for (let i = waves.length - 1; i >= 0; i--) {
+                waves[i].update();
+                waves[i].show();
+                if (waves[i].finished()) waves.splice(i, 1); 
+            }
+        }
+        document.getElementById('startButton').addEventListener('click', startGame);
+        document.getElementById('tryAgainButton').addEventListener('click', startGame);
+    </script>
+</body>
+</html>
